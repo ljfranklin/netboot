@@ -115,8 +115,14 @@ func (s *Server) validateDHCP(pkt *dhcp4.Packet) (mach Machine, fwtype Firmware,
 	case 9:
 		mach.Arch = ArchX64
 		fwtype = FirmwareEFIBC
+	case 10, 21:
+		mach.Arch = ArchArm32
+		fwtype = FirmwareEFIArm32
+	case 11, 22:
+		mach.Arch = ArchArm64
+		fwtype = FirmwareEFIArm64
 	default:
-		return mach, 0, fmt.Errorf("unsupported client firmware type '%d' (please file a bug!)", fwtype)
+		return mach, 0, fmt.Errorf("unsupported client firmware type '%d' (please file a bug!)", fwt)
 	}
 
 	// Now, identify special sub-breeds of client firmware based on
@@ -193,7 +199,7 @@ func (s *Server) offerDHCP(pkt *dhcp4.Packet, mach Machine, serverIP net.IP, fwt
 		if err != nil {
 			return nil, fmt.Errorf("failed to serialize PXE vendor options: %s", err)
 		}
-		resp.Options[43] = bs
+		resp.Options[dhcp4.OptVendorSpecific] = bs
 		resp.BootServerName = serverIP.String()
 		resp.BootFilename = fmt.Sprintf("%s/%d", mach.MAC, fwtype)
 
@@ -207,10 +213,10 @@ func (s *Server) offerDHCP(pkt *dhcp4.Packet, mach Machine, serverIP net.IP, fwt
 		if err != nil {
 			return nil, fmt.Errorf("failed to serialize PXE vendor options: %s", err)
 		}
-		resp.Options[43] = bs
+		resp.Options[dhcp4.OptVendorSpecific] = bs
 		resp.BootFilename = fmt.Sprintf("tftp://%s/%s/%d", serverIP, mach.MAC, fwtype)
 
-	case FirmwareEFI32, FirmwareEFI64, FirmwareEFIBC:
+	case FirmwareEFI32, FirmwareEFI64, FirmwareEFIBC, FirmwareEFIArm32, FirmwareEFIArm64:
 		// In theory, the response we send for FirmwareX86PC should
 		// also work for EFI. However, some UEFI firmwares don't
 		// support PXE properly, and will ignore ProxyDHCP responses

@@ -80,6 +80,8 @@ func serverConfigFlags(cmd *cobra.Command) {
 	cmd.Flags().String("ipxe-ipxe", "", "Path to an iPXE binary for chainloading from another iPXE")
 	cmd.Flags().String("ipxe-efi32", "", "Path to an iPXE binary for 32-bit UEFI")
 	cmd.Flags().String("ipxe-efi64", "", "Path to an iPXE binary for 64-bit UEFI")
+	cmd.Flags().String("ipxe-efiarm32", "", "Path to an iPXE binary for 32-bit Arm UEFI")
+	cmd.Flags().String("ipxe-efiarm64", "", "Path to an iPXE binary for 64-bit Arm UEFI")
 
 	// Development flags, hidden from normal use.
 	cmd.Flags().String("ui-assets-dir", "", "UI assets directory (used for development)")
@@ -170,6 +172,14 @@ func serverFromFlags(cmd *cobra.Command) *pixiecore.Server {
 	if err != nil {
 		fatalf("Error reading flag: %s", err)
 	}
+	ipxeEFIArm32, err := cmd.Flags().GetString("ipxe-efiarm32")
+	if err != nil {
+		fatalf("Error reading flag: %s", err)
+	}
+	ipxeEFIArm64, err := cmd.Flags().GetString("ipxe-efiarm64")
+	if err != nil {
+		fatalf("Error reading flag: %s", err)
+	}
 	uiAssetsDir, err := cmd.Flags().GetString("ui-assets-dir")
 	if err != nil {
 		fatalf("Error reading flag: %s", err)
@@ -202,6 +212,12 @@ func serverFromFlags(cmd *cobra.Command) *pixiecore.Server {
 	if ipxeEFI64 != "" {
 		ret.Ipxe[pixiecore.FirmwareEFI64] = mustFile(ipxeEFI64)
 		ret.Ipxe[pixiecore.FirmwareEFIBC] = ret.Ipxe[pixiecore.FirmwareEFI64]
+	}
+	if ipxeEFIArm32 != "" {
+		ret.Ipxe[pixiecore.FirmwareEFIArm32] = mustFile(ipxeEFIArm32)
+	}
+	if ipxeEFIArm64 != "" {
+		ret.Ipxe[pixiecore.FirmwareEFIArm64] = mustFile(ipxeEFIArm64)
 	}
 
 	if timestamps {
