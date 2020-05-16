@@ -101,7 +101,7 @@ func (s *Server) handleIpxe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	start = time.Now()
-	script, err := ipxeScript(mach, spec, r.Host)
+	script, err := s.ipxeScript(mach, spec, r.Host)
 	s.debug("HTTP", "Construct ipxe script for %s took %s", mac, time.Since(start))
 	if err != nil {
 		s.log("HTTP", "Failed to assemble ipxe script for %s (query %q from %s): %s", mac, r.URL, r.RemoteAddr, err)
@@ -180,7 +180,7 @@ func (s *Server) handleBooting(w http.ResponseWriter, r *http.Request) {
 	s.machineEvent(mac, machineStateBooted, "Booting into OS")
 }
 
-func ipxeScript(mach Machine, spec *Spec, serverHost string) ([]byte, error) {
+func (s *Server) ipxeScript(mach Machine, spec *Spec, serverHost string) ([]byte, error) {
 	if spec.IpxeScript != "" {
 		return []byte(spec.IpxeScript), nil
 	}
@@ -210,7 +210,7 @@ func ipxeScript(mach Machine, spec *Spec, serverHost string) ([]byte, error) {
 	f := func(id string) string {
 		return fmt.Sprintf("http://%s/_/file?name=%s", serverHost, url.QueryEscape(id))
 	}
-	cmdline, err := expandCmdline(spec.Cmdline, template.FuncMap{"ID": f})
+	cmdline, err := s.CmdlineTransform(spec.Cmdline, mach.MAC.String(), template.FuncMap{"ID": f})
 	if err != nil {
 		return nil, fmt.Errorf("expanding cmdline %q: %s", spec.Cmdline, err)
 	}

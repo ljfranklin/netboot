@@ -103,7 +103,7 @@ type Spec struct {
 	IpxeScript string
 }
 
-func expandCmdline(tpl string, funcs template.FuncMap) (string, error) {
+func expandCmdline(tpl string, mac string, funcs template.FuncMap) (string, error) {
 	tmpl, err := template.New("cmdline").Option("missingkey=error").Funcs(funcs).Parse(tpl)
 	if err != nil {
 		return "", fmt.Errorf("parsing cmdline %q: %s", tpl, err)
@@ -201,6 +201,8 @@ type Server struct {
 	// assets. Used for development of Pixiecore.
 	UIAssetsDir string
 
+	CmdlineTransform func(tpl string, mac string, funcs template.FuncMap) (string, error)
+
 	errs chan error
 
 	eventsMu sync.Mutex
@@ -226,6 +228,10 @@ func (s *Server) Serve() error {
 	newDHCP := dhcp4.NewConn
 	if s.DHCPNoBind {
 		newDHCP = dhcp4.NewSnooperConn
+	}
+
+	if s.CmdlineTransform == nil {
+		s.CmdlineTransform = expandCmdline
 	}
 
 	dhcp, err := newDHCP(fmt.Sprintf("%s:%d", s.Address, s.DHCPPort))

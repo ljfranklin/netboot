@@ -50,7 +50,7 @@ func StaticBooter(spec *Spec) (Booter, error) {
 		ret.otherIDs = append(ret.otherIDs, id)
 		return fmt.Sprintf("{{ ID \"other-%d\" }}", len(ret.otherIDs)-1)
 	}
-	cmdline, err := expandCmdline(spec.Cmdline, template.FuncMap{"ID": f})
+	cmdline, err := expandCmdline(spec.Cmdline, "", template.FuncMap{"ID": f})
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +237,7 @@ func (b *apibooter) BootSpec(m Machine) (*Spec, error) {
 		}
 		return fmt.Sprintf("{{ ID %q }}", id), nil
 	}
-	ret.Cmdline, err = expandCmdline(ret.Cmdline, template.FuncMap{"URL": f})
+	ret.Cmdline, err = expandCmdline(ret.Cmdline, m.MAC.String(), template.FuncMap{"URL": f})
 	if err != nil {
 		return nil, err
 	}
