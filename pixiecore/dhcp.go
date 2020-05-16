@@ -247,6 +247,9 @@ func (s *Server) offerDHCP(pkt *dhcp4.Packet, mach Machine, serverIP net.IP, fwt
 		return nil, fmt.Errorf("unknown firmware type %d", fwtype)
 	}
 
+	// TODO(ljfranklin): make this configurable or auto-add on MAC prefix
+	resp.Options[dhcp4.OptVendorSpecific] = []byte("Raspberry Pi Boot   ")
+
 	return resp, nil
 }
 
