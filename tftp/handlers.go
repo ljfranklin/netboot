@@ -31,7 +31,7 @@ func FilesystemHandler(root string) (Handler, error) {
 		return nil, err
 	}
 	root = filepath.ToSlash(root)
-	return func(path string, addr net.Addr) (io.ReadCloser, int64, error) {
+	return func(path string, addr net.Addr, serverIP string) (io.ReadCloser, int64, error) {
 		// Join with a root, which gets rid of directory traversal
 		// attempts. Then we join that canonicalized path with the
 		// actual root, which resolves to the actual on-disk file to
@@ -53,7 +53,7 @@ func FilesystemHandler(root string) (Handler, error) {
 
 // ConstantHandler returns a Handler that serves bs for all requested paths.
 func ConstantHandler(bs []byte) Handler {
-	return func(path string, addr net.Addr) (io.ReadCloser, int64, error) {
+	return func(path string, addr net.Addr, serverIP string) (io.ReadCloser, int64, error) {
 		return ioutil.NopCloser(bytes.NewBuffer(bs)), int64(len(bs)), nil
 	}
 }

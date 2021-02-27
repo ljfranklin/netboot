@@ -101,6 +101,11 @@ type Spec struct {
 	// responsibility to make the boot succeed, Pixiecore's
 	// involvement ends when it serves your script.
 	IpxeScript string
+
+	// If true, boot from a PXELinux-style config rather than using iPXE.
+	// This is intended for clients which do not support iPXE, e.g.
+	// certain Arm32 boards.
+	ForcePXELinux bool
 }
 
 func expandCmdline(tpl string, mac string, funcs template.FuncMap) (string, error) {

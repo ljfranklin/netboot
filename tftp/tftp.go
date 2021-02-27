@@ -24,6 +24,9 @@ import (
 	"net"
 	"strconv"
 	"time"
+
+	"golang.org/x/net/ipv4"
+	"golang.org/x/net/ipv6"
 )
 
 const (
@@ -57,7 +60,7 @@ const (
 // very capricious about servers not supporting all the options that
 // they request, so passing a size of 0 may cause TFTP transfers to
 // fail for some clients.
-type Handler func(path string, clientAddr net.Addr) (file io.ReadCloser, size int64, err error)
+type Handler func(path string, clientAddr net.Addr, serverIP string) (file io.ReadCloser, size int64, err error)
 
 // A Server defines parameters for running a TFTP server.
 type Server struct {
@@ -116,20 +119,29 @@ func (s *Server) Serve(l net.PacketConn) error {
 	if err := l.SetDeadline(time.Time{}); err != nil {
 		return err
 	}
+	if err := setUDPSocketOptions(l); err != nil {
+		return err
+	}
 	buf := make([]byte, 512)
+	oobbuf := make([]byte, 512)
 	for {
-		n, addr, err := l.ReadFrom(buf)
+		n, oobn, _, sourceAddr, err := l.(*net.UDPConn).ReadMsgUDP(buf, oobbuf)
 		if err != nil {
 			return err
 		}
 
 		req, err := parseRRQ(buf[:n])
 		if err != nil {
-			s.infoLog("bad request from %q: %s", addr, err)
+			s.infoLog("bad request from %q: %s", sourceAddr, err)
 			continue
 		}
 
-		go s.transferAndLog(addr, req)
+		dstIP, err := parseDstFromOOB(oobbuf[:oobn])
+		if err != nil {
+			return err
+		}
+
+		go s.transferAndLog(sourceAddr, dstIP, req)
 	}
 
 }
@@ -146,26 +158,26 @@ func (s *Server) transferLog(addr net.Addr, path string, err error) {
 	}
 }
 
-func (s *Server) transferAndLog(addr net.Addr, req *rrq) {
-	err := s.transfer(addr, req)
+func (s *Server) transferAndLog(clientAddr net.Addr, serverIP string, req *rrq) {
+	err := s.transfer(clientAddr, serverIP, req)
 	if err != nil {
-		err = fmt.Errorf("%q: %s", addr, err)
+		err = fmt.Errorf("%q: %s", clientAddr, err)
 	}
-	s.transferLog(addr, req.Filename, err)
+	s.transferLog(clientAddr, req.Filename, err)
 }
 
-func (s *Server) transfer(addr net.Addr, req *rrq) error {
+func (s *Server) transfer(clientAddr net.Addr, serverIP string, req *rrq) error {
 	d := s.Dial
 	if d == nil {
 		d = net.Dial
 	}
-	conn, err := d("udp", addr.String())
+	conn, err := d("udp", clientAddr.String())
 	if err != nil {
 		return fmt.Errorf("creating socket: %s", err)
 	}
 	defer conn.Close()
 
-	file, size, err := s.Handler(req.Filename, addr)
+	file, size, err := s.Handler(req.Filename, clientAddr, serverIP)
 	if err != nil {
 		conn.Write(tftpError("failed to get file"))
 		return fmt.Errorf("getting file bytes: %s", err)
@@ -185,7 +197,7 @@ func (s *Server) transfer(addr net.Addr, req *rrq) error {
 				maxBlockSize = DefaultBlockSize
 			}
 			if req.BlockSize > maxBlockSize {
-				s.infoLog("clamping blocksize to %q: %d -> %d", addr, req.BlockSize, maxBlockSize)
+				s.infoLog("clamping blocksize to %q: %d -> %d", clientAddr, req.BlockSize, maxBlockSize)
 				req.BlockSize = maxBlockSize
 			}
 
@@ -392,4 +404,30 @@ func tftpStr(bs []byte) (str string, remaining []byte, err error) {
 		}
 	}
 	return "", nil, errors.New("no null terminated string found")
+}
+
+// Taken from https://github.com/miekg/dns/blob/23c4faca9d32b0abbb6e179aa1aadc45ac53a916/udp.go#L56-L81
+func setUDPSocketOptions(conn net.PacketConn) error {
+	// Try setting the flags for both families and ignore the errors unless they
+	// both error.
+	err6 := ipv6.NewPacketConn(conn).SetControlMessage(ipv6.FlagDst|ipv6.FlagInterface, true)
+	err4 := ipv4.NewPacketConn(conn).SetControlMessage(ipv4.FlagDst|ipv4.FlagInterface, true)
+	if err6 != nil && err4 != nil {
+		return err4
+	}
+	return nil
+}
+
+// parseDstFromOOB takes oob data and returns the destination IP.
+func parseDstFromOOB(oob []byte) (string, error) {
+	// Start with IPv6 and then fallback to IPv4
+	cm6 := ipv6.ControlMessage{}
+	if cm6.Parse(oob) == nil && cm6.Dst != nil {
+		return cm6.Dst.String(), nil
+	}
+	cm4 := ipv4.ControlMessage{}
+	if cm4.Parse(oob) == nil && cm4.Dst != nil {
+		return cm4.Dst.String(), nil
+	}
+	return "", fmt.Errorf("Failed to parse IP from: %s", oob)
 }

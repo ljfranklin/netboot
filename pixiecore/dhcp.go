@@ -185,6 +185,19 @@ func (s *Server) offerDHCP(pkt *dhcp4.Packet, mach Machine, serverIP net.IP, fwt
 		resp.Options[97] = pkt.Options[97]
 	}
 
+	spec, err := s.Booter.BootSpec(mach)
+	if err != nil {
+		return nil, err
+	}
+	if spec.ForcePXELinux {
+		resp.BootServerName = serverIP.String()
+		// Return an empty bootfile to force PXELINUX-style path lookups to use
+		// "MAC/FWTYPE" as the parent directory:
+		// https://wiki.syslinux.org/wiki/index.php?title=PXELINUX#Working_directory
+		resp.BootFilename = fmt.Sprintf("%s/%d/empty", mach.MAC, fwtype)
+		return resp, nil
+	}
+
 	switch fwtype {
 	case FirmwareX86PC:
 		// This is completely standard PXE: we tell the PXE client to
